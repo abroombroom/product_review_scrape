@@ -19,13 +19,14 @@ class SnoozeReviews:
 		self.total_reviews = None
 		self.review_counts = defaultdict()
 		self.reviews = []
+		self.authors = []
 
 		if not os.path.exists('data'):
 			os.mkdir('data')
 
 		self.data_dir = 'data'
 
-	def page_one(self):
+	def get_reviews(self):
 
 		pages_ = int(re.search(r'\d+\)', BeautifulSoup(requests.get('https://www.productreview.com.au/p/snooze/2.html').text, 'html.parser').find('div', class_='item-header-summary-title').text.lower().strip()).group(0).split(')')[0])
 		
@@ -63,13 +64,22 @@ class SnoozeReviews:
 
 				lnk = auth['href']
 
+				this_review['id'] = re.search(r'\d+', lnk).group(0)
 				this_review['author'] = auth.text.lower().strip()
 				this_review['author_link'] = 'https://www.productreview.com.au' + lnk
 
 				shop = defaultdict()
 
+				shop_line = review.find('p', class_='review-labels')
+
+				if shop_line and ('verified' in shop_line.text.lower()):
+					this_review['verified'] = 'yes'
+				else:
+					this_review['verified'] = 'no'
+
 				try:
-					shop['state'], shop['suburb'] = [_.split(':')[-1].strip() for _ in review.find('p', class_='review-labels').text.strip().lower().split(',')]
+					shop['state'], shop['suburb'] = [_.split(':')[-1].strip() 
+								for _ in shop_line.text.strip().lower().split(',')]
 				except:
 					pass
 
@@ -97,7 +107,52 @@ class SnoozeReviews:
 
 		return self
 
+	def get_reviewers(self):
+
+		print('collecting reviewer information...')
+
+		for review in self.reviews:
+
+			this_reviewer = defaultdict()
+
+			try:
+				sp = BeautifulSoup(requests.get(review['author_link']).text, 'html.parser')
+
+				for b in sp.find_all('a'):
+					try:
+						this_reviewer['id'] = b['rel'].pop()
+						break
+					except:
+						continue 
+
+				this_reviewer['name'] = sp.find('div', class_='profile-summary').find('img')['alt'].lower().strip()
+
+				# dates are like August 27, 2018
+
+				for l in sp.find('div', class_='user-info-content').find_all('dd'):
+
+					if re.match(r'\d{4}', l.text):
+						this_reviewer['joined'] = arrow.get(''.join([_ for _ in l.text.title() 
+													if _ not in '.,']), 'MMMM D YYYY')
+					elif {'act', 'nsw', 'vic', 'qld', 'sa', 'nt', 'tas'} & set(l.text.lower().split()):
+						this_reviewer['location'] = l.text.lower()
+
+				for _ in sp.find_all('a', class_='btn'):
+
+					if 'review' in _.text.lower():
+						this_reviewer['number_reviews'] = re.search(r'\d+', _.text).group(0)
+						break
+
+				self.authors.append(this_reviewer)
+
+			except:
+				continue
+
+		json.dump(self.authors, open(os.path.join(self.data_dir, f'authors_{self.today}.json'), 'w'))
+
+		return self
+
 if __name__ == '__main__':
 
 	sr = SnoozeReviews() \
-		.page_one()
+		.get_reviews().get_reviewers()
