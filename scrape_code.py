@@ -68,8 +68,16 @@ class SnoozeReviews:
 
 				shop = defaultdict()
 
+				shop_line = review.find('p', class_='review-labels')
+
+				if shop_line and ('verified' in shop_line.text.lower()):
+					this_review['verified'] = 'yes'
+				else:
+					this_review['verified'] = 'no'
+
 				try:
-					shop['state'], shop['suburb'] = [_.split(':')[-1].strip() for _ in review.find('p', class_='review-labels').text.strip().lower().split(',')]
+					shop['state'], shop['suburb'] = [_.split(':')[-1].strip() 
+								for _ in shop_line.text.strip().lower().split(',')]
 				except:
 					pass
 
