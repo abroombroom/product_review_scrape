@@ -1,1 +1,3 @@
-# product_review_scrape
+# Snooze Reviews from ProductReview
+
+We collect the reviews and some reviewer details.
